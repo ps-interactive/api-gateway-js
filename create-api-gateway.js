@@ -1,114 +1,150 @@
 // Imports
-const AWS = require('aws-sdk')
+const AWS = require('aws-sdk');
+const util = require('util');
+AWS.config.update({ region: 'us-west-2' });
 
-AWS.config.update({ region: 'us-east-1' })
+const apiG = new AWS.APIGateway();
 
-// Declare local variables
-const apiG = new AWS.APIGateway()
-const apiName = 'hamster-api'
+const apiName = 'ps-labs-users';
 
-let apiData
+async function run() {
+  //# Step 1
+  //const apiData = await createRestApi(apiName);
+  //const restApiId = apiData.id;
 
-createRestApi(apiName)
-.then((data) => {
-  apiData = data
-  return getRootResource(apiData)
-})
-.then(rootResourceId => createResource(rootResourceId, 'hbfl', apiData))
-.then(hbflResourceId => createResourceMethod(hbflResourceId, 'GET', apiData))
-.then(hbflResourceId => createMethodIntegration(hbflResourceId, 'GET', apiData))
-.then(hbflResourceId => createResource(hbflResourceId, '{proxy+}', apiData))
-.then(proxyResourceId => createResourceMethod(proxyResourceId, 'ANY', apiData, 'proxy'))
-.then(proxyResourceId => createMethodIntegration(proxyResourceId, 'ANY', apiData, 'proxy'))
-.then(data => console.log(data))
+  const restApiId = 'j7eihjj2ld';
 
-function createRestApi (apiName) {
-  const params = {
-    name: apiName
-  }
+  //# Step 2
 
-  return new Promise((resolve, reject) => {
-    apiG.createRestApi(params, (err, data) => {
-      if (err) reject(err)
-      else resolve(data)
-    })
-  })
+  const rootResources = await getRootResources(restApiId);
+  const rootPathId = rootResources.items[0].id;
+
+  //# Step 3
+  // args: root path id, resource path, api id
+  //const usersResource = await createResource(rootPathId, 'users', restApiId);
+  //const resourceId = usersResource.id;
+
+  const resourceId = 'jcv5am';
+  // Step #4
+  //const resourceMethod = await createResourceGETMethod(resourceId, restApiId);
+  //console.log(util.inspect({ resourceMethod }, { depth: null }));
+
+  // Step #5
+  // const resourceMethodResponse = await create200MethodResponse(
+  //   resourceId,
+  //   restApiId
+  // );
+  // console.log(util.inspect({ resourceMethodResponse }, { depth: null }));
+
+  // Step #6
+  // Before this step, must create Service Role for API Gateway
+  // and take note of Lambda ARN
+  // const resourceMethodIntegration = await createMethodIntegration(
+  //   resourceId,
+  //   restApiId
+  // );
+  // console.log(util.inspect({ resourceMethodIntegration }, { depth: null }));
+
+  // Step #7
+  // const methodIntegrationResponse = await createMethodIntegrationResponse(
+  //   resourceId,
+  //   restApiId
+  // );
+  // console.log(util.inspect({ methodIntegrationResponse }, { depth: null }));
+
+  //createDeployment(restApiId).then((data) => console.log({ data }));
+
+  const { body } = await invokeMethod(resourceId, restApiId);
+  console.log({ body });
 }
 
-function getRootResource (api) {
-  const params = {
-    restApiId: api.id
-  }
+run();
 
-  return new Promise((resolve, reject) => {
-    apiG.getResources(params, (err, data) => {
-      if (err) reject(err)
-      else {
-        const rootResource = data.items.find(r => r.path === '/')
-        resolve(rootResource.id)
-      }
-    })
-  })
+function createRestApi(name) {
+  return apiG.createRestApi({ name }).promise();
 }
 
-function createResource (parentResourceId, resourcePath, api) {
+function getRootResources(apiId) {
+  const params = {
+    restApiId: apiId,
+  };
+  return apiG.getResources(params).promise();
+}
+
+function createResource(parentResourceId, resourcePath, apiId) {
   const params = {
     parentId: parentResourceId,
     pathPart: resourcePath,
-    restApiId: api.id
-  }
+    restApiId: apiId,
+  };
 
-  return new Promise((resolve, reject) => {
-    apiG.createResource(params, (err, data) => {
-      if (err) reject(err)
-      else resolve(data.id)
-    })
-  })
+  return apiG.createResource(params).promise();
 }
 
-function createResourceMethod (resourceId, method, api, path) {
+function createResourceGETMethod(resourceId, apiId) {
   const params = {
     authorizationType: 'NONE',
-    httpMethod: method,
+    httpMethod: 'GET',
     resourceId: resourceId,
-    restApiId: api.id
-  }
+    restApiId: apiId,
+  };
 
-  if (path) {
-    params.requestParameters = {
-      [`method.request.path.${path}`]: true
-    }
-  }
-
-  return new Promise((resolve, reject) => {
-    apiG.putMethod(params, (err) => {
-      if (err) reject(err)
-      else resolve(resourceId)
-    })
-  })
+  return apiG.putMethod(params).promise();
 }
 
-function createMethodIntegration (resourceId, method, api, path) {
+function create200MethodResponse(resourceId, apiId) {
   const params = {
-    httpMethod: method,
+    restApiId: apiId,
     resourceId: resourceId,
-    restApiId: api.id,
-    integrationHttpMethod: method,
-    type: 'HTTP_PROXY',
-    uri: 'http://hamsterELB-956462610.us-east-1.elb.amazonaws.com'
-  }
+    httpMethod: 'GET',
+    statusCode: '200',
+  };
 
-  if (path) {
-    params.uri += `/{${path}}`
-    params.requestParameters = {
-      [`integration.request.path.${path}`]: `method.request.path.${path}`
-    }
-  }
+  return apiG.putMethodResponse(params).promise();
+}
 
-  return new Promise((resolve, reject) => {
-    apiG.putIntegration(params, (err) => {
-      if (err) reject(err)
-      else resolve(resourceId)
+function createMethodIntegration(resourceId, apiId) {
+  const params = {
+    httpMethod: 'GET',
+    resourceId: resourceId,
+    restApiId: apiId,
+    integrationHttpMethod: 'POST',
+    type: 'AWS',
+    uri:
+      'arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-west-2:647915875147:function:helloWorld/invocations',
+    credentials: 'arn:aws:iam::647915875147:role/apigAwsProxyRole',
+  };
+
+  return apiG.putIntegration(params).promise();
+}
+
+function createMethodIntegrationResponse(resourceId, restApiId) {
+  const params = {
+    httpMethod: 'GET',
+    resourceId,
+    restApiId,
+    statusCode: '200',
+  };
+
+  return apiG.putIntegrationResponse(params).promise();
+}
+
+function createDeployment(restApiId) {
+  return apiG
+    .createDeployment({
+      restApiId,
+      description: 'Testing API w Lambda',
+      stageName: 'prod',
     })
-  })
+    .promise();
+}
+
+function invokeMethod(resourceId, restApiId) {
+  return apiG
+    .testInvokeMethod({
+      httpMethod: 'GET',
+      resourceId,
+      restApiId,
+    })
+    .promise();
 }
