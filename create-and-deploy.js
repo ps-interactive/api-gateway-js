@@ -22,11 +22,7 @@ async function createAndDeploy() {
   const rootResources = await aws.getRootResources(restApiId);
   const rootPathId = rootResources.items[0].id;
 
-  const usersResource = await aws.createResource(
-    restApiId,
-    rootPathId,
-    'users'
-  );
+  const usersResource = await aws.createResource(restApiId, rootPathId, '');
   const resourceId = usersResource.id;
 
   await aws.createResourceGETMethod(restApiId, resourceId);
